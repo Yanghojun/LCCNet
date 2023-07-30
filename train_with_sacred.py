@@ -11,6 +11,9 @@
 
 import math
 import os
+os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
 import random
 import time
 
@@ -18,6 +21,7 @@ import time
 import mathutils
 import numpy as np
 import torch
+
 import torch.nn.functional as F
 import torch.nn.parallel
 import torch.optim as optim
@@ -32,6 +36,7 @@ from losses import DistancePoints3D, GeometricLoss, L1Loss, ProposedLoss, Combin
 from models.LCCNet import LCCNet
 
 from quaternion_distances import quaternion_distance
+from tqdm import tqdm
 
 from tensorboardX import SummaryWriter
 from utils import (mat2xyzrpy, merge_inputs, overlay_imgs, quat2mat,
@@ -48,22 +53,22 @@ ex.captured_out_filter = apply_backspaces_and_linefeeds
 # noinspection PyUnusedLocal
 @ex.config
 def config():
-    checkpoints = './checkpoints/'
     dataset = 'kitti/odom' # 'kitti/raw'
-    data_folder = '/home/wangshuo/Datasets/KITTI/odometry/data_odometry_full/'
+    checkpoints = './checkpoints/' + dataset
+    data_folder = '/home/LCCNet/KITTI_ODOMETRY/'
     use_reflectance = False
-    val_sequence = 0
+    val_sequence = '00'
     epochs = 120
     BASE_LEARNING_RATE = 3e-4  # 1e-4
     loss = 'combined'
     max_t = 0.1 # 1.5, 1.0,  0.5,  0.2,  0.1
     max_r = 1. # 20.0, 10.0, 5.0,  2.0,  1.0
-    batch_size = 240  # 120
-    num_worker = 6
+    batch_size = 120 # 240
+    num_worker = 0 # 6
     network = 'Res_f1'
     optimizer = 'adam'
     resume = True
-    weights = './pretrained/kitti/kitti_iter5.tar'
+    weights = None # './pretrained/kitti/kitti_iter5.tar'
     rescale_rot = 1.0
     rescale_transl = 2.0
     precision = "O0"
@@ -76,8 +81,7 @@ def config():
     starting_epoch = -1
 
 
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 EPOCH = 1
@@ -125,7 +129,9 @@ def train(model, optimizer, rgb_img, refl_img, target_transl, target_rot, loss_f
 
     optimizer.zero_grad()
 
+    
     # Run model
+    print(rgb_img.shape, refl_img.shape)
     transl_err, rot_err = model(rgb_img, refl_img)
 
     if loss == 'points_distance' or loss == 'combined':
@@ -158,7 +164,7 @@ def val(model, rgb_img, refl_img, target_transl, target_rot, loss_fn, point_clou
     # else:
     #     total_loss = loss_fn(point_clouds, target_transl, target_rot, transl_err, rot_err)
 
-    total_trasl_error = torch.tensor(0.0)
+    total_trasl_error = torch.tensor(0.0).to(device)
     total_rot_error = quaternion_distance(target_rot, rot_err, target_rot.device)
     total_rot_error = total_rot_error * 180. / math.pi
     for j in range(rgb_img.shape[0]):
@@ -183,12 +189,13 @@ def main(_config, _run, seed):
     if _config['val_sequence'] is None:
         raise TypeError('val_sequences cannot be None')
     else:
-        _config['val_sequence'] = f"{_config['val_sequence']:02d}"
+        # print(_config['val_sequence'])
+        # _config['val_sequence'] = f"{_config['val_sequence']:02d}"        # 10의자리 까지만 살리는거 같길래 필요없어보임. readonly 에러 안 일으키도록 함
         print("Val Sequence: ", _config['val_sequence'])
         dataset_class = DatasetLidarCameraKittiOdometry
     img_shape = (384, 1280) # 网络的输入尺度
     input_size = (256, 512)
-    _config["checkpoints"] = os.path.join(_config["checkpoints"], _config['dataset'])
+    # _config["checkpoints"] = os.path.join(_config["checkpoints"], _config['dataset'])
 
     dataset_train = dataset_class(_config['data_folder'], max_r=_config['max_r'], max_t=_config['max_t'],
                                   split='train', use_reflectance=_config['use_reflectance'],
@@ -311,6 +318,7 @@ def main(_config, _run, seed):
                               weight_decay=5e-6, nesterov=True)
 
     starting_epoch = _config['starting_epoch']
+
     if _config['weights'] is not None and _config['resume']:
         checkpoint = torch.load(_config['weights'], map_location='cpu')
         opt_state_dict = checkpoint['optimizer']
@@ -327,7 +335,7 @@ def main(_config, _run, seed):
 
     train_iter = 0
     val_iter = 0
-    for epoch in range(starting_epoch, _config['epochs'] + 1):
+    for epoch in tqdm(range(starting_epoch, _config['epochs'] + 1)):
         EPOCH = epoch
         print('This is %d-th epoch' % epoch)
         epoch_start_time = time.time()

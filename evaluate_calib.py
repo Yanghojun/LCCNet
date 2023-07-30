@@ -60,13 +60,13 @@ plt_size = 10.5
 ex = Experiment("LCCNet-evaluate-iterative")
 ex.captured_out_filter = apply_backspaces_and_linefeeds
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 # noinspection PyUnusedLocal
 @ex.config
 def config():
     dataset = 'kitti/odom'
-    data_folder = './kitti_odometry_color/dataset/'
+    data_folder = './KITTI_ODOMETRY/' # './kitti_odometry_color/dataset/'
     test_sequence = 0
     use_prev_output = False
     max_t = 1.5
@@ -87,17 +87,17 @@ def config():
     max_depth = 80.
     iterative_method = 'multi_range' # ['multi_range', 'single_range', 'single']
     output = './output'
-    save_image = False
+    save_image = True
     outlier_filter = True
     outlier_filter_th = 10
     out_fig_lg = 'EN' # [EN, CN]
 
 weights = [
-   './LCCNet_pretrained/kitti_iter1.tar',
-   './LCCNet_pretrained/kitti_iter2.tar',
-   './LCCNet_pretrained/kitti_iter3.tar',
-   './LCCNet_pretrained/kitti_iter4.tar',
-   './LCCNet_pretrained/kitti_iter5.tar',
+#    './LCCNet_pretrained/kitti_iter1.tar',
+#    './LCCNet_pretrained/kitti_iter2.tar',
+#    './LCCNet_pretrained/kitti_iter3.tar',
+#    './LCCNet_pretrained/kitti_iter4.tar',
+   './pretrained/kitti/kitti_iter5.tar',
 ]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -220,12 +220,14 @@ def main(_config, seed):
     if _config['save_log']:
         os.makedirs('results_for_paper', exist_ok=True)
         log_file = f'./results_for_paper/log_seq{_config["test_sequence"]}.csv'
-        log_file = csv.writer(log_file)
-        header = ['frame']
-        for i in range(len(weights) + 1):
-            header += [f'iter{i}_error_t', f'iter{i}_error_r', f'iter{i}_error_x', f'iter{i}_error_y',
-                       f'iter{i}_error_z', f'iter{i}_error_r', f'iter{i}_error_p', f'iter{i}_error_y']
-        log_file.writerow(header)
+
+        with open(log_file, 'w', newline='') as csv_file:
+            log_file = csv.writer(csv_file) # log_file = csv.writer(log_file)
+            header = ['frame']
+            for i in range(len(weights) + 1):
+                header += [f'iter{i}_error_t', f'iter{i}_error_r', f'iter{i}_error_x', f'iter{i}_error_y',
+                        f'iter{i}_error_z', f'iter{i}_error_r', f'iter{i}_error_p', f'iter{i}_error_y']
+            log_file.writerow(header)
 
     show = _config['show']
     # save image to the output path
@@ -531,7 +533,20 @@ def main(_config, seed):
         prev_rot_error = quaternion_from_matrix(prev_RT).unsqueeze(0)
 
         if _config['save_log']:
-            log_file.writerow(log_string)
+            # log_file = csv.writer(csv_file) # log_file = csv.writer(log_file)
+            # header = ['frame']
+            # for i in range(len(weights) + 1):
+            #     header += [f'iter{i}_error_t', f'iter{i}_error_r', f'iter{i}_error_x', f'iter{i}_error_y',
+            #             f'iter{i}_error_z', f'iter{i}_error_r', f'iter{i}_error_p', f'iter{i}_error_y']
+            # log_file.writerow(header)
+
+            os.makedirs('results_for_paper', exist_ok=True)
+            log_file = f'./results_for_paper/log_string{_config["test_sequence"]}.csv'
+            with open(log_file, 'w') as csv_file:
+                log_file = csv.writer(csv_file)
+                log_file.writerow(log_string)
+            
+            # log_file.writerow(log_string)
 
     # Yaw（偏航）：欧拉角向量的y轴
     # Pitch（俯仰）：欧拉角向量的x轴

@@ -50,12 +50,12 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         self.suf = suf
 
         self.all_files = []
-        self.sequence_list = [f'{s:02}' for s in range(0, 21)]
+        # self.sequence_list = [f'{s:02}' for s in range(0, 21)]
         # self.model = CameraModel()
         # self.model.focal_length = [7.18856e+02, 7.18856e+02]
         # self.model.principal_point = [6.071928e+02, 1.852157e+02]
-        # for seq in ['00', '03', '05', '06', '07', '08', '09']:
-        for seq in self.sequence_list:
+        for seq in ['00', '03']:
+        # for seq in self.sequence_list:
             odom = odometry(self.root_dir, seq)
             calib = odom.calib
             T_cam02_velo_np = calib.T_cam2_velo #gt pose from cam02 to velo_lidar (T_cam02_velo: 4x4)

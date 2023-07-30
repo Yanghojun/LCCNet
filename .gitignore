@@ -6,3 +6,6 @@ models/correlation_package/build/
 *.egg-info/
 output/
 results_for_paper/
+KITTI_ODOMETRY/
+checkpoints/
+pretrained/
